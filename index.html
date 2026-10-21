@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Wordfish · Wordle engine</title>
+  <meta name="description" content="A Stockfish-style engine for Wordle: best next guesses, an eval bar and chess.com-style move ratings.">
+  <meta name="theme-color" content="#0b0c10">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234fa463'/%3E%3Cpath d='M5 16c4-6 12-7 17-3l5-4v14l-5-4c-5 4-13 3-17-3z' fill='%23fff'/%3E%3Ccircle cx='11' cy='15' r='1.6' fill='%234fa463'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="ambient" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="Wordfish home">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32"><path d="M5 16c4-6 12-7 17-3l5-4v14l-5-4c-5 4-13 3-17-3z"/><circle cx="11" cy="15" r="1.6"/></svg>
+      </span>
+      <span class="brand-text">Wordfish<small>Wordle engine</small></span>
+    </a>
+
+    <nav class="modes" role="tablist" aria-label="Mode">
+      <span class="modes-thumb" aria-hidden="true"></span>
+      <button role="tab" data-mode="assist" aria-selected="true">Solve</button>
+      <button role="tab" data-mode="practice" aria-selected="false">Practice</button>
+    </nav>
+
+    <div class="top-actions">
+      <button class="icon-btn" id="btn-undo" title="Undo last guess (Ctrl+Z)" aria-label="Undo">
+        <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-review" title="Game review" aria-label="Game review">
+        <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 6-6"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-help" title="How ratings work" aria-label="Help">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M9.6 9.2a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.7"/><path d="M12 17h.01"/></svg>
+      </button>
+      <button class="btn btn-primary" id="btn-new">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span>New</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="play" aria-label="Board">
+      <div class="board-wrap">
+        <div class="evalbar" id="evalbar" title="Expected total guesses">
+          <div class="evalbar-track">
+            <div class="evalbar-fill" id="evalbar-fill"></div>
+            <div class="evalbar-ticks" aria-hidden="true"><i>1</i><i>2</i><i>3</i><i>4</i><i>5</i><i>6</i></div>
+          </div>
+          <span class="evalbar-label" id="evalbar-label">–</span>
+        </div>
+        <div class="board" id="board" aria-live="polite"></div>
+      </div>
+      <p class="hint" id="hint"></p>
+      <div class="keyboard" id="keyboard" aria-label="Keyboard"></div>
+    </section>
+
+    <aside class="panel" aria-label="Engine analysis">
+      <div class="card engine">
+        <div class="engine-head">
+          <div class="engine-title">
+            <span class="engine-dot" id="engine-dot"></span>
+            <div>
+              <strong>Wordfish 1.0</strong>
+              <span class="engine-status" id="engine-status">Loading…</span>
+            </div>
+          </div>
+          <div class="engine-tools">
+            <button class="chip-btn" id="btn-peek" hidden>
+              <svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+              <span>Show engine</span>
+            </button>
+            <button class="icon-btn small" id="btn-settings" title="Engine settings" aria-label="Engine settings" aria-expanded="false">
+              <svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="settings" id="settings" hidden>
+          <label class="setting">
+            <span>Hard mode</span>
+            <input type="checkbox" id="opt-hard" class="switch">
+          </label>
+          <label class="setting">
+            <span>Depth</span>
+            <select id="opt-depth">
+              <option value="auto">Auto</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+            </select>
+          </label>
+          <label class="setting">
+            <span>Lines</span>
+            <select id="opt-lines">
+              <option value="3">3</option>
+              <option value="5">5</option>
+              <option value="8">8</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="loading" id="loading">
+          <div class="loading-bar"><span id="loading-fill"></span></div>
+          <p id="loading-text">Building the pattern table…</p>
+        </div>
+
+        <div class="engine-body" id="engine-body">
+          <div class="summary" id="summary"></div>
+          <ol class="lines" id="lines"></ol>
+          <div class="veil" id="veil" hidden>
+            <svg viewBox="0 0 24 24"><path d="M3 3l18 18"/><path d="M10.6 5.1A9.8 9.8 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4M6.6 6.6A17 17 0 0 0 2 12s3.6 7 10 7a9.6 9.6 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
+            <p><strong>No peeking.</strong> The engine is hidden while you play.<br>Your moves are still graded.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" id="cand-card">
+        <div class="card-head">
+          <h2>Possible answers</h2>
+          <span class="count" id="cand-count"></span>
+        </div>
+        <div class="chips" id="cands"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Moves</h2>
+          <span class="count" id="accuracy"></span>
+        </div>
+        <ol class="moves" id="moves"></ol>
+      </div>
+    </aside>
+  </main>
+
+  <div class="toasts" id="toasts" aria-live="assertive"></div>
+
+  <dialog class="modal" id="review">
+    <form method="dialog" class="modal-close"><button aria-label="Close">✕</button></form>
+    <div id="review-body"></div>
+  </dialog>
+
+  <dialog class="modal" id="help">
+    <form method="dialog" class="modal-close"><button aria-label="Close">✕</button></form>
+    <h2>How Wordfish rates a guess</h2>
+    <p class="lead">
+      Chess.com runs <b>Stockfish</b> on every position, turns its evaluation into an <i>expected score</i>
+      (roughly your chance of winning), and grades each move by how much expected score it threw away compared
+      with the engine's best move. Wordfish does exactly the same thing, but the score is
+      <b>expected guesses to solve</b>.
+    </p>
+    <div class="help-grid" id="help-classes"></div>
+    <h3>The numbers</h3>
+    <ul class="help-list">
+      <li><b>Eval</b>: how many more guesses you should need from here (including this one) if you keep playing perfectly. Lower is better.</li>
+      <li><b>Eval bar</b>: the expected <i>total</i> for this game on a 1–6 scale. Par is 4.</li>
+      <li><b>Bits</b>: how much the guess shrinks the list on average (each bit halves it).</li>
+      <li><b>Left</b>: answers you should expect to still have after this guess.</li>
+      <li><b>Win now / by next</b>: chance this guess is the answer, and best chance of being done by the guess after.</li>
+    </ul>
+    <h3>Using it on today's Wordle</h3>
+    <p>In <b>Solve</b>, type the word you played, tap each tile until it matches the colors Wordle gave you, then press Enter.
+      In <b>Practice</b>, play against a hidden word and get a chess.com-style game review at the end.</p>
+  </dialog>
+
+  <script src="js/app.js" type="module"></script>
+</body>
+</html>
